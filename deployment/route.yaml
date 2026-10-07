@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ocpaudit
+  namespace: ocp-audit
+  labels:
+    app: ocpaudit
+spec:
+  to:
+    kind: Service
+    name: ocpaudit
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

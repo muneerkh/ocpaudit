@@ -1,0 +1,120 @@
+# Adds an "OCPAudit" dashboard under Observe → Dashboards in the console.
+# Requires user-workload monitoring enabled (enableUserWorkload: true in
+# cluster-monitoring-config) and the ServiceMonitor scraping /metrics.
+#
+# The console expects classic Grafana dashboard JSON (rows/panels schema).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ocpaudit-dashboard
+  namespace: openshift-config-managed
+  labels:
+    console.openshift.io/dashboard: "true"
+data:
+  ocpaudit-dashboard.json: |
+    {
+      "title": "OCPAudit",
+      "uid": "ocpaudit",
+      "schemaVersion": 16,
+      "version": 1,
+      "editable": true,
+      "hideControls": false,
+      "graphTooltip": 1,
+      "style": "dark",
+      "refresh": "30s",
+      "time": {"from": "now-24h", "to": "now"},
+      "timezone": "",
+      "annotations": {"list": []},
+      "links": [],
+      "tags": [],
+      "templating": {
+        "list": [
+          {
+            "type": "datasource",
+            "name": "datasource",
+            "label": "Data source",
+            "query": "prometheus",
+            "refresh": 1,
+            "hide": 0,
+            "options": [],
+            "current": {"text": "default", "value": "default"}
+          }
+        ]
+      },
+      "rows": [
+        {
+          "title": "Overview",
+          "collapse": false, "height": "250px", "showTitle": true,
+          "panels": [
+            {
+              "id": 1, "title": "Logins by user (hourly)", "type": "graph", "span": 6,
+              "datasource": "$datasource",
+              "targets": [{"expr": "sum by (username) (increase(ocpaudit_logins_total[1h]))", "legendFormat": "{{username}}", "refId": "A"}],
+              "lines": true, "fill": 2, "linewidth": 2, "stack": true,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            },
+            {
+              "id": 2, "title": "Audit records by category (hourly)", "type": "graph", "span": 6,
+              "datasource": "$datasource",
+              "targets": [{"expr": "sum by (category) (increase(ocpaudit_records_total[1h]))", "legendFormat": "{{category}}", "refId": "A"}],
+              "lines": true, "fill": 2, "linewidth": 2, "stack": true,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            }
+          ]
+        },
+        {
+          "title": "User activity",
+          "collapse": false, "height": "250px", "showTitle": true,
+          "panels": [
+            {
+              "id": 3, "title": "Top users — API changes (24h)", "type": "graph", "span": 6,
+              "datasource": "$datasource",
+              "targets": [{"expr": "topk(10, sum by (username) (increase(ocpaudit_records_total{category=\"api_change\"}[24h])))", "legendFormat": "{{username}}", "refId": "A"}],
+              "bars": true, "lines": false, "fill": 1,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            },
+            {
+              "id": 4, "title": "Audit records by verb (hourly)", "type": "graph", "span": 6,
+              "datasource": "$datasource",
+              "targets": [{"expr": "sum by (verb) (increase(ocpaudit_records_total[1h]))", "legendFormat": "{{verb}}", "refId": "A"}],
+              "lines": true, "fill": 2, "linewidth": 2, "stack": true,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            }
+          ]
+        },
+        {
+          "title": "App health",
+          "collapse": false, "height": "250px", "showTitle": true,
+          "panels": [
+            {
+              "id": 5, "title": "Audit ingest rate", "type": "graph", "span": 4,
+              "datasource": "$datasource",
+              "targets": [{"expr": "rate(ocpaudit_ingest_events_total[5m])", "legendFormat": "events/s", "refId": "A"}],
+              "lines": true, "fill": 1, "linewidth": 2,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            },
+            {
+              "id": 6, "title": "DB write queue depth", "type": "graph", "span": 4,
+              "datasource": "$datasource",
+              "targets": [{"expr": "ocpaudit_queue_len", "legendFormat": "queued records", "refId": "A"}],
+              "lines": true, "fill": 1, "linewidth": 2,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            },
+            {
+              "id": 7, "title": "Store errors (hourly)", "type": "graph", "span": 4,
+              "datasource": "$datasource",
+              "targets": [{"expr": "increase(ocpaudit_store_errors_total[1h])", "legendFormat": "errors", "refId": "A"}],
+              "lines": true, "fill": 1, "linewidth": 2,
+              "legend": {"show": true}, "nullPointMode": "null as zero",
+              "yaxes": [{"format": "short", "min": 0, "show": true}, {"format": "short", "show": false}]
+            }
+          ]
+        }
+      ]
+    }

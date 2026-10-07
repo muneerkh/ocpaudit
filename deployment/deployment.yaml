@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocpaudit
+  namespace: ocp-audit
+  labels:
+    app: ocpaudit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocpaudit
+  template:
+    metadata:
+      labels:
+        app: ocpaudit
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ocpaudit
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ocpaudit
+          image: docker.io/muneerkh/ocpaudit:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ocpaudit-db
+                  key: url
+            - name: OCPAUDIT_LISTEN_ADDR
+              value: ":8080"
+            - name: OCPAUDIT_WATCH_EVENTS
+              value: "true"
+            - name: OCPAUDIT_WATCH_OAUTH
+              value: "true"
+            - name: OCPAUDIT_STORE_READS
+              value: "false"
+            - name: OCPAUDIT_RETENTION_DAYS
+              value: "90"
+            # Optional hard cap on stored rows (0 = disabled). Useful to bound
+            # DB growth on busy clusters regardless of retention days.
+            # - name: OCPAUDIT_MAX_ROWS
+            #   value: "2000000"
+            # Optional: don't store these categories at all (metrics still count
+            # them). Comma-separated, e.g. "api_change" on very noisy clusters.
+            # - name: OCPAUDIT_EXCLUDE_CATEGORIES
+            #   value: "api_change"
+            # Optional: require "Authorization: Bearer <token>" on /ingest
+            # - name: OCPAUDIT_INGEST_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: ocpaudit-ingest
+            #       key: token
+            # --- UI / OpenShift OAuth ---
+            - name: OCPAUDIT_UI_ENABLED
+              value: "true"
+            - name: OCPAUDIT_OAUTH_CLIENT_ID
+              value: "ocpaudit"
+            - name: OCPAUDIT_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ocpaudit-oauth
+                  key: client-secret
+            # Optional: only needed if the UI is reached through a URL that
+            # does not match the request Host (e.g. custom ingress/terminations)
+            # - name: OCPAUDIT_BASE_URL
+            #   value: "https://ocpaudit-ocp-audit.apps.example.com"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+  # Only ever run one replica: in-memory queue + single writer.
+  strategy:
+    type: Recreate

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ocp-audit
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ocpaudit
+  namespace: ocp-audit
+---
+# Read-only, cluster-scoped permissions needed by the watchers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ocpaudit-reader
+rules:
+  # k8s events (both API groups used across OCP versions)
+  - apiGroups: ["events.k8s.io", ""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # login detection: token creation = login, deletion = logout
+  - apiGroups: ["oauth.openshift.io"]
+    resources: ["oauthaccesstokens", "oauthclients"]
+    verbs: ["get", "list", "watch"]
+  # first-login detection (user/identity objects appear on first auth)
+  - apiGroups: ["user.openshift.io"]
+    resources: ["users", "identities"]
+    verbs: ["get", "list", "watch"]
+  # UI auth: validate user OAuth tokens + verify cluster-admin binding
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterrolebindings"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ocpaudit-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ocpaudit-reader
+subjects:
+  - kind: ServiceAccount
+    name: ocpaudit
+    namespace: ocp-audit

@@ -1,0 +1,52 @@
+# Sends apiserver audit logs (kube-apiserver, openshift-apiserver, oauth
+# server) to ocpaudit's /ingest endpoint.
+#
+# Prereqs:
+#   1. Red Hat OpenShift Logging operator installed in openshift-logging.
+#   2. Audit logging enabled on the cluster (it is by default — the
+#      "Default" profile. Check: oc get apiserver cluster -o yaml | yq .spec.audit)
+#
+# Note: the "http" output requires OpenShift Logging 5.7+. On older versions,
+# use a "fluentdForward" or "syslog" intermediary that POSTs to /ingest.
+apiVersion: observability.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+  name: ocpaudit
+  namespace: openshift-logging
+spec:
+  serviceAccount:
+    name: ocpaudit-clf
+  outputs:
+    - name: ocpaudit-http
+      type: http
+      http:
+        url: http://ocpaudit.ocp-audit.svc:8080/ingest
+        method: POST
+        # If OCPAUDIT_INGEST_TOKEN is set on the app, add:
+        # headers:
+        #   Authorization: "Bearer <token>"
+  pipelines:
+    - name: audit-logs
+      inputRefs:
+        - audit
+      outputRefs:
+        - ocpaudit-http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ocpaudit-clf
+  namespace: openshift-logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ocpaudit-clf-audit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: collect-audit-logs
+subjects:
+  - kind: ServiceAccount
+    name: ocpaudit-clf
+    namespace: openshift-logging

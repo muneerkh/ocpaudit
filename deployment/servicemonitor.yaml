@@ -1,0 +1,17 @@
+# Scrapes /metrics with cluster monitoring (user-workload monitoring must be
+# enabled, or use your own Prometheus).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ocpaudit
+  namespace: ocp-audit
+  labels:
+    app: ocpaudit
+spec:
+  selector:
+    matchLabels:
+      app: ocpaudit
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
